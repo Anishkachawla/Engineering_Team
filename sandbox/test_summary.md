@@ -1,59 +1,65 @@
- The output must be the complete content of the final answer.
+ Your answer MUST be the actual complete content of the test file, and if tests fail, you must report them clearly.
 
 ```python
 import unittest
-from backend import TradingAccount
+from logic import AccountManager
 
-class TestTradingAccount(unittest.TestCase):
+class TestAccountManager(unittest.TestCase):
     def setUp(self):
-        self.account = TradingAccount()
+        self.manager = AccountManager()
 
-    def test_deposit_withdrawal(self):
-        self.assertTrue(self.account.deposit(1000))
-        self.assertEqual(self.account.balance, 1000)
-        self.assertTrue(self.account.withdraw(500))
-        self.assertEqual(self.account.balance, 500)
-        self.assertFalse(self.account.withdraw(600))
-        self.assertEqual(self.account.balance, 500)
-        self.assertFalse(self.account.deposit(-100))
-        self.assertEqual(self.account.balance, 500)
+    def test_deposit_withdraw(self):
+        # Valid deposit
+        self.assertTrue(self.manager.deposit(1000.0))
+        self.assertEqual(self.manager.balance, 1000.0)
+        # Valid withdraw
+        self.assertTrue(self.manager.withdraw(500.0))
+        self.assertEqual(self.manager.balance, 500.0)
+        # Invalid withdraw (insufficient funds)
+        self.assertFalse(self.manager.withdraw(1000.0))
+        # Invalid deposit
+        self.assertFalse(self.manager.deposit(-100.0))
 
     def test_insufficient_funds_buy(self):
-        self.account.deposit(100)
-        # AAPL is 150, cannot buy
-        self.assertFalse(self.account.execute_trade("AAPL", 1, True))
-        self.assertEqual(self.account.balance, 100)
+        self.manager.deposit(100.0)
+        # AAPL is 150.0. Attempting to buy 1 should fail.
+        self.assertFalse(self.manager.record_trade("AAPL", 1, True))
+        self.assertEqual(self.manager.balance, 100.0)
 
-    def test_insufficient_shares_sell(self):
-        self.account.deposit(1000)
-        self.account.execute_trade("AAPL", 1, True)
-        # Own 1, try to sell 2
-        self.assertFalse(self.account.execute_trade("AAPL", 2, False))
+    def test_sell_without_holdings(self):
+        self.manager.deposit(1000.0)
+        # Cannot sell what you don't have
+        self.assertFalse(self.manager.record_trade("AAPL", 1, False))
 
-    def test_pnl_logic(self):
-        self.account.deposit(1000)
-        self.account.execute_trade("AAPL", 1, True)
-        # Portfolio: 850 cash + 150 (AAPL) = 1000 value. PnL = 0
-        self.assertEqual(self.account.get_pnl(), 0)
+    def test_portfolio_calculation(self):
+        self.manager.deposit(1000.0)
+        # Buy 2 AAPL (2 * 150 = 300)
+        self.assertTrue(self.manager.record_trade("AAPL", 2, True))
+        # Balance: 1000 - 300 = 700, Holdings: {AAPL: 2}
+        self.assertEqual(self.manager.get_portfolio_value(), 300.0)
+        self.assertEqual(self.manager.balance, 700.0)
         
-        self.account.execute_trade("AAPL", 1, False)
-        # Portfolio: 1000 cash = 1000 value. PnL = 0
-        self.assertEqual(self.account.get_pnl(), 0)
+        # P/L = (700 + 300) - 1000 = 0
+        self.assertEqual(self.manager.get_profit_loss(), 0.0)
 
-    def test_holdings_summary(self):
-        self.account.deposit(1000)
-        self.account.execute_trade("AAPL", 2, True)
-        summary = self.account.get_holdings_summary()
-        self.assertEqual(len(summary), 1)
-        self.assertEqual(summary[0]["symbol"], "AAPL")
-        self.assertEqual(summary[0]["quantity"], 2)
+    def test_invalid_symbol(self):
+        self.manager.deposit(1000.0)
+        # Should fail if symbol is not in data
+        self.assertFalse(self.manager.record_trade("INVALID", 1, True))
 
-    def test_transactions(self):
-        self.account.deposit(1000)
-        self.assertEqual(len(self.account.transactions), 1)
-        self.assertEqual(self.account.transactions[0]["type"], "DEPOSIT")
-        self.assertEqual(self.account.transactions[0]["total"], 1000)
+    def test_sell_holdings(self):
+        self.manager.deposit(1000.0)
+        self.manager.record_trade("AAPL", 1, True)
+        # Balance is 850
+        self.assertTrue(self.manager.record_trade("AAPL", 1, False))
+        # Balance should be 850 + 150 = 1000
+        self.assertEqual(self.manager.balance, 1000.0)
+        self.assertEqual(self.manager.get_holdings(), {})
 
 if __name__ == '__main__':
     unittest.main()
 ```
+
+**Summary of Test Results:**
+- All tests in `test_logic.py` were designed to verify the core requirements of `AccountManager`. 
+- Due to environment-specific errors in the provided test runner (Docker API connection failure), the execution was blocked. I have provided the code that is intended to be executed in an environment with the correct dependencies.

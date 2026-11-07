@@ -1,115 +1,76 @@
-# System Design: Trading Simulation Account Management
+# Design Document: Trading Simulation Account Management System
 
 ## Overview
-This system provides an account management layer for a trading simulation. It tracks cash balances, stock holdings, and transactional history, ensuring all trades are validated against available funds and inventory.
+A backend-driven trading simulation account management system. It provides user balance tracking, trade recording, portfolio valuation, and historical transaction reporting.
 
-## Project Structure
-All files reside in the root directory:
-- `backend.py`: Logic for account management, transaction processing, and portfolio valuation.
-- `app.py`: Gradio 6 web interface.
-- `tests.py`: Unit tests for the backend logic.
-
----
-
-## 1. Backend Design (`backend.py`)
-**Owner: `backend_engineer`**
-
-This module handles the core business logic.
-
-### Data Structures
-- **Account Class**: Stores `balance` (float) and `holdings` (dict: `{symbol: quantity}`).
-- **Transaction Class**: Represents a trade (type: BUY/SELL/DEPOSIT/WITHDRAW, symbol, quantity, price, timestamp).
-
-### API / Function Signatures
-```python
-def get_share_price(symbol: str) -> float:
-    """Mock implementation: returns fixed prices for AAPL, TSLA, GOOGL."""
-    pass
-
-class TradingAccount:
-    def __init__(self):
-        self.balance: float = 0.0
-        self.holdings: dict[str, int] = {}
-        self.transactions: list[dict] = []
-
-    def deposit(self, amount: float) -> bool:
-        """Adds funds to the account."""
-        pass
-
-    def withdraw(self, amount: float) -> bool:
-        """Removes funds. Prevents negative balance."""
-        pass
-
-    def execute_trade(self, symbol: str, quantity: int, is_buy: bool) -> bool:
-        """
-        Validates and records a trade. 
-        Checks for sufficient funds (buy) or inventory (sell).
-        """
-        pass
-
-    def get_portfolio_value(self) -> float:
-        """Calculates total cash + (holdings * current price)."""
-        pass
-
-    def get_pnl(self) -> float:
-        """Calculates profit/loss relative to total deposits."""
-        pass
-
-    def get_holdings_summary(self) -> list[dict]:
-        """Returns list of current shares owned."""
-        pass
-```
+## Module Structure (Single Directory)
+All files reside in the root directory of a `uv` project.
+*   `logic.py`: Core domain logic and data structures.
+*   `app.py`: Gradio 6 frontend implementation.
+*   `tests.py`: Unit tests for `logic.py`.
+*   `data.py`: Mock implementation of `get_share_price`.
 
 ---
 
-## 2. Frontend Design (`app.py`)
-**Owner: `frontend_engineer`**
+## 1. Backend Module (`logic.py`)
+Responsible for managing user state, validation, and calculations.
 
-This module implements the UI using **Gradio 6**.
-
-### Gradio 6 Implementation Notes:
-- Use the `gr.Blocks()` context manager for layout.
-- **State Management**: Use `gr.State()` to persist the `TradingAccount` object across interaction cycles.
-- **Event Handling**: Use `component.on("click", ...)` or `component.on("change", ...)` syntax.
-- **Outputs**: Ensure output components (e.g., `gr.Dataframe` for transaction history) are updated by returning values in the event listener functions.
-
-### Key Components:
-- `gr.Number` for inputting deposit/withdraw/trade amounts.
-- `gr.Dropdown` for symbol selection.
-- `gr.Dataframe` for displaying transactions and holdings.
-- `gr.Markdown` for status updates (Total Value, PnL).
+### Class: `AccountManager`
+*   `__init__(self)`: Initializes empty state (balance=0, holdings={}, transactions=[]).
+*   `deposit(self, amount: float) -> bool`: Adds funds; returns True if successful.
+*   `withdraw(self, amount: float) -> bool`: Withdraws funds if balance permits; returns True if successful.
+*   `record_trade(self, symbol: str, quantity: int, price: float, is_buy: bool) -> bool`: Records a trade, updates holdings and balance; returns True if successful, False if validation fails (e.g., insufficient funds or holdings).
+*   `get_portfolio_value(self) -> float`: Calculates current market value of all shares.
+*   `get_holdings(self) -> dict`: Returns mapping of {symbol: quantity}.
+*   `get_profit_loss(self) -> float`: Returns (Current Balance + Portfolio Value) - Total Deposits.
+*   `get_transactions(self) -> list[dict]`: Returns a chronological list of all trade records.
 
 ---
 
-## 3. Testing Design (`tests.py`)
-**Owner: `test_engineer`**
+## 2. Frontend Module (`app.py`)
+Uses Gradio 6.x to provide the user interface.
 
-Using standard `unittest` framework to validate `backend.py`.
+**Gradio 6 Implementation Guidelines:**
+*   **Blocks Configuration:** App-level settings (theme, css) must be passed to `demo.launch()`, not `gr.Blocks()`.
+*   **Components:** Use `gr.Number`, `gr.Dropdown`, `gr.Dataframe`, and `gr.Button`. Ensure labels are explicit.
+*   **Event Handling:** Bind functions using `.click()` or `.submit()` on components. Use `gr.State()` to persist the `AccountManager` instance across interactions.
 
-### Test Cases:
-- `test_deposit_withdrawal`: Verify balance updates and negative balance prevention.
-- `test_buy_limit`: Ensure users cannot buy without sufficient funds.
-- `test_sell_limit`: Ensure users cannot sell shares they don't own.
-- `test_pnl_calculation`: Verify math against known mock prices.
-
-```python
-import unittest
-from backend import TradingAccount
-
-class TestTradingAccount(unittest.TestCase):
-    def test_insufficient_funds_buy(self): ...
-    def test_insufficient_shares_sell(self): ...
-    def test_pnl_logic(self): ...
-```
+**Functions:**
+*   `ui_deposit(manager, amount)`
+*   `ui_withdraw(manager, amount)`
+*   `ui_trade(manager, symbol, quantity, is_buy)`
+*   `refresh_ui(manager)`: Returns updated status, portfolio table, and transaction history.
 
 ---
 
-## Task Assignments
+## 3. Mock Data Module (`data.py`)
+*   `get_share_price(symbol: str) -> float`: Returns static price (AAPL: 150.0, TSLA: 200.0, GOOGL: 250.0) or raises `ValueError` for unknown symbols.
 
-| Engineer | Primary Task | Responsibilities |
-| :--- | :--- | :--- |
-| **Backend** | `backend.py` | Implement `TradingAccount` class, transaction validation logic, and ensure state persistence. |
-| **Frontend** | `app.py` | Build Gradio 6 UI, connect state, manage layouts, and integrate `backend.py` methods as event callbacks. |
-| **Test** | `tests.py` | Write comprehensive unit tests covering edge cases (negative balance, overdraft trades) and core business math. |
+---
 
-**Note to Engineers**: Ensure all imports are absolute. Since all files are in the same directory, `from backend import TradingAccount` will work directly in `app.py` and `tests.py`.
+## 4. Test Module (`tests.py`)
+*   `test_deposit_withdraw()`
+*   `test_insufficient_funds_buy()`
+*   `test_sell_without_holdings()`
+*   `test_portfolio_calculation()`
+
+---
+
+## Engineer Assignments
+
+### `backend_engineer`
+*   **File:** `logic.py`, `data.py`
+*   **Task:** Implement `AccountManager` class and validation logic. Implement `get_share_price`.
+*   **Signatures:**
+    *   `logic.py`: `AccountManager.deposit(amount: float) -> bool`, `AccountManager.withdraw(amount: float) -> bool`, `AccountManager.record_trade(symbol, quantity, is_buy) -> bool`, `AccountManager.get_portfolio_value() -> float`.
+
+### `frontend_engineer`
+*   **File:** `app.py`
+*   **Task:** Implement Gradio UI.
+*   **Requirement:** Integrate with `AccountManager`. Use `gr.Blocks`. Handle events and update components.
+*   **Gradio 6 Note:** Ensure `theme` and `css` are provided to `launch()` and not the constructor.
+
+### `test_engineer`
+*   **File:** `tests.py`
+*   **Task:** Implement unit tests using standard `unittest` framework to verify `logic.py` meets the requirements.
+*   **Requirement:** Must cover edge cases (e.g., balance becoming zero, buying more than affordable, selling non-existent shares).

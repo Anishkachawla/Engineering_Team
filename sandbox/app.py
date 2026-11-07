@@ -1,78 +1,80 @@
 import gradio as gr
-from backend import TradingAccount
+from logic import AccountManager
 
-def create_ui():
-    # CSS to support custom theme colors in both modes
-    custom_css = """
-    .gradio-container {background-color: #f9f9f9;}
-    .dark .gradio-container {background-color: #121212;}
-    .primary-btn {background-color: #ecad0a !important; color: white !important;}
-    .secondary-btn {background-color: #209dd7 !important; color: white !important;}
-    .accent-btn {background-color: #753991 !important; color: white !important;}
-    """
+# Define CSS for professional theme
+css = """
+body { background-color: #f9f9f9; }
+.gradio-container { border-radius: 8px !important; }
+#status-display { font-size: 1.2em; font-weight: bold; color: #209dd7; }
+"""
+
+def ui_deposit(manager, amount):
+    if amount is None or amount <= 0:
+        return "Please enter a valid amount.", manager
+    if manager.deposit(amount):
+        return f"Deposited ${amount:.2f}", manager
+    return "Deposit failed.", manager
+
+def ui_withdraw(manager, amount):
+    if amount is None or amount <= 0:
+        return "Please enter a valid amount.", manager
+    if manager.withdraw(amount):
+        return f"Withdrew ${amount:.2f}", manager
+    return "Withdrawal failed (insufficient funds).", manager
+
+def ui_trade(manager, symbol, quantity, trade_type):
+    if quantity is None or quantity <= 0:
+        return "Invalid quantity.", manager
+    is_buy = (trade_type == "BUY")
+    if manager.record_trade(symbol, int(quantity), is_buy):
+        return f"Trade executed: {trade_type} {int(quantity)} {symbol}", manager
+    return "Trade failed (check funds/holdings).", manager
+
+def refresh_ui(manager):
+    holdings = manager.get_holdings()
+    holdings_list = [[s, q] for s, q in holdings.items()]
+    transactions = manager.get_transactions()
+    trans_list = [[t.get("type"), t.get("symbol", "N/A"), t.get("quantity", "N/A"), 
+                   t.get("price", "N/A"), t.get("total", "N/A"), t.get("amount", "N/A")] for t in transactions]
     
-    with gr.Blocks(css=custom_css) as demo:
-        state = gr.State(TradingAccount())
-        
-        gr.Markdown("# Trading Simulation")
-        
+    status = f"Balance: ${manager.balance:.2f} | Portfolio Value: ${manager.get_portfolio_value():.2f} | P/L: ${manager.get_profit_loss():.2f}"
+    return status, holdings_list, trans_list
+
+with gr.Blocks(css=css, theme=gr.themes.Soft()) as demo:
+    manager_state = gr.State(AccountManager())
+    
+    gr.Markdown("# Trading Simulation Dashboard")
+    status_display = gr.Markdown("Status: Initialized", elem_id="status-display")
+    
+    with gr.Tab("Account Operations"):
         with gr.Row():
-            balance_display = gr.Number(label="Cash Balance", interactive=False)
-            portfolio_value = gr.Number(label="Total Portfolio Value", interactive=False)
-            pnl_display = gr.Number(label="PnL", interactive=False)
+            deposit_input = gr.Number(label="Amount ($)", scale=2)
+            deposit_btn = gr.Button("Deposit", variant="primary")
+            withdraw_input = gr.Number(label="Amount ($)", scale=2)
+            withdraw_btn = gr.Button("Withdraw", variant="secondary")
         
+    with gr.Tab("Market Trading"):
         with gr.Row():
-            with gr.Column(variant="panel"):
-                gr.Markdown("### Cash Operations")
-                amount_input = gr.Number(label="Amount", value=0)
-                with gr.Row():
-                    deposit_btn = gr.Button("Deposit", elem_classes="secondary-btn")
-                    withdraw_btn = gr.Button("Withdraw", elem_classes="accent-btn")
-            with gr.Column(variant="panel"):
-                gr.Markdown("### Trade Operations")
-                symbol_input = gr.Dropdown(["AAPL", "TSLA", "GOOGL"], label="Symbol")
-                qty_input = gr.Number(label="Quantity", value=1, step=1)
-                with gr.Row():
-                    buy_btn = gr.Button("Buy", elem_classes="primary-btn")
-                    sell_btn = gr.Button("Sell", elem_classes="primary-btn")
+            symbol_input = gr.Dropdown(["AAPL", "TSLA", "GOOGL"], label="Symbol")
+            qty_input = gr.Number(label="Quantity", value=1)
+            type_input = gr.Dropdown(["BUY", "SELL"], label="Action", value="BUY")
+            trade_btn = gr.Button("Execute Trade", variant="primary")
         
-        holdings_table = gr.Dataframe(label="Current Holdings", headers=["symbol", "quantity"], interactive=False)
-        transactions_table = gr.Dataframe(label="Transaction History", headers=["timestamp", "type", "symbol", "quantity", "price", "total"], interactive=False)
+    with gr.Row():
+        holdings_table = gr.Dataframe(headers=["Symbol", "Quantity"], label="Current Holdings", interactive=False)
+        transactions_table = gr.Dataframe(headers=["Type", "Symbol", "Qty", "Price", "Total", "Amount"], label="Transaction History", interactive=False)
 
-        def update_ui(account):
-            holdings = [[h['symbol'], h['quantity']] for h in account.get_holdings_summary()]
-            transactions = [[t['timestamp'], t['type'], t['symbol'], t['quantity'], t['price'], t['total']] for t in account.transactions]
-            return (
-                account.balance,
-                account.get_portfolio_value(),
-                account.get_pnl(),
-                holdings,
-                transactions
-            )
+    msg_display = gr.Markdown("")
 
-        def deposit(account, amount):
-            account.deposit(float(amount))
-            return (account, *update_ui(account))
+    def update_all(manager):
+        status, holdings, trans = refresh_ui(manager)
+        return status, holdings, trans, manager
 
-        def withdraw(account, amount):
-            account.withdraw(float(amount))
-            return (account, *update_ui(account))
-        
-        def buy(account, symbol, qty):
-            account.execute_trade(symbol, int(qty), True)
-            return (account, *update_ui(account))
-            
-        def sell(account, symbol, qty):
-            account.execute_trade(symbol, int(qty), False)
-            return (account, *update_ui(account))
+    deposit_btn.click(ui_deposit, [manager_state, deposit_input], [msg_display, manager_state]) \
+               .then(update_all, [manager_state], [status_display, holdings_table, transactions_table, manager_state])
+               
+    withdraw_btn.click(ui_withdraw, [manager_state, withdraw_input], [msg_display, manager_state]) \
+                .then(update_all, [manager_state], [status_display, holdings_table, transactions_table, manager_state])
 
-        deposit_btn.click(deposit, [state, amount_input], [state, balance_display, portfolio_value, pnl_display, holdings_table, transactions_table])
-        withdraw_btn.click(withdraw, [state, amount_input], [state, balance_display, portfolio_value, pnl_display, holdings_table, transactions_table])
-        buy_btn.click(buy, [state, symbol_input, qty_input], [state, balance_display, portfolio_value, pnl_display, holdings_table, transactions_table])
-        sell_btn.click(sell, [state, symbol_input, qty_input], [state, balance_display, portfolio_value, pnl_display, holdings_table, transactions_table])
-
-    return demo
-
-if __name__ == "__main__":
-    demo = create_ui()
-    demo.launch()
+    trade_btn.click(ui_trade, [manager_state, symbol_input, qty_input, type_input], [msg_display, manager_state]) \
+             .then(update_all, [manager_state], [status_display, holdings_table, transactions_table, manager_state])

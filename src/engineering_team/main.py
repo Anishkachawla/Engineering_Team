@@ -6,6 +6,7 @@ from datetime import datetime
 import engineering_team.patch  # noqa: F401 — applies CrewAI MCP monkey-patch on import
 from engineering_team.crew import EngineeringTeam
 from .tools.sandbox_tools import reset_sandbox
+from .tools.sandbox_tools import run_final_integration_validation
 
 warnings.filterwarnings("ignore", category=SyntaxWarning, module="pysbd")
 
@@ -36,6 +37,21 @@ def run():
         EngineeringTeam().crew().kickoff(inputs=inputs)
     except Exception as e:
         raise Exception(f"An error occurred while running the crew: {e}")
+
+    validation = run_final_integration_validation()
+    print(f"Final validation: {'PASS' if validation['passed'] else 'FAIL'}")
+    print(f"Validation report: {validation['summary_file']}")
+
+    if not validation["passed"]:
+        failed_checks = [
+            check["name"]
+            for check in validation["checks"]
+            if not check["passed"]
+        ]
+        print("Failed checks:", ", ".join(failed_checks))
+        raise SystemExit(1)
+
+    print("EngineeringTeam completed successfully.")
 
 
 def train():
@@ -102,3 +118,6 @@ def run_with_trigger():
         return result
     except Exception as e:
         raise Exception(f"An error occurred while running the crew with trigger: {e}")
+
+if __name__ == "__main__":
+    run()

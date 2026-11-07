@@ -2,7 +2,7 @@ import os
 from crewai import Agent, Crew, Process, Task, LLM
 from crewai.project import CrewBase, agent, crew, task
 from crewai.agents.agent_builder.base_agent import BaseAgent
-from .tools.sandbox_tools import sandbox_tools
+from .tools.sandbox_tools import sandbox_tools, test_agent_tools
 # If you want to run a snippet of code before or after the crew starts,
 # you can use the @before_kickoff and @after_kickoff decorators
 # https://docs.crewai.com/concepts/crews#example-crew-class-with-decorators
@@ -29,7 +29,9 @@ class EngineeringTeam():
             config=self.agents_config['engineering_lead'],
             verbose=True,
             mcps=["https://mcp.context7.com/mcp"],
-            llm=self.gemini_llm
+            llm=self.gemini_llm,
+            max_iter=6,
+            max_retry_limit=2
         )
 
     @agent
@@ -38,7 +40,9 @@ class EngineeringTeam():
             config=self.agents_config['backend_engineer'],
             verbose=True,
             tools=sandbox_tools,
-            llm=self.gemini_llm
+            llm=self.gemini_llm,
+            max_iter=6,
+            max_retry_limit=2
         )
     
     @agent
@@ -48,7 +52,9 @@ class EngineeringTeam():
             verbose=True,
             tools=sandbox_tools,
             mcps=["https://mcp.context7.com/mcp"],
-            llm=self.gemini_llm
+            llm=self.gemini_llm,
+            max_iter=6,
+            max_retry_limit=2
         )
     
     @agent
@@ -56,8 +62,10 @@ class EngineeringTeam():
         return Agent(
             config=self.agents_config['test_engineer'],
             verbose=True,
-            tools=sandbox_tools,
-            llm=self.gemini_llm
+            tools=test_agent_tools,
+            llm=self.gemini_llm,
+            max_iter=6,
+            max_retry_limit=2
         )
 
     @task
